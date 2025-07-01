@@ -1,51 +1,63 @@
 import streamlit as st
-import pandas as pd
-import os
-import json
-from google.analytics.data_v1beta import BetaAnalyticsDataClient
-from google.analytics.data_v1beta.types import RunReportRequest, DateRange, Dimension, Metric, FilterExpression, Filter
-from google.oauth2 import service_account
+from authlib.integrations.requests_client import OAuth2Session
+import requests
 
-# --- Streamlit UI ---
-st.title("GA4 90-Day Audit Tool")
+# ---------------------------
+# Setup your OAuth details
+# ---------------------------
+client_id = st.secrets["client_id"]
+client_secret = st.secrets["client_secret"]
+redirect_uri = "http://localhost:8501" if st.runtime.scriptrunner.is_running_with_streamlit else "https://your-app-name.streamlit.app"
 
-uploaded_file = st.file_uploader("Upload your GA4 service account JSON", type=["json"])
-property_id = st.text_input("Enter your GA4 Property ID")
+authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
+token_url = "https://oauth2.googleapis.com/token"
+scope = "https://www.googleapis.com/auth/analytics.readonly"
 
-run_button = st.button("Run Audit")
+st.set_page_config(page_title="GA4 OAuth Demo", layout="centered")
+st.title("🔐 GA4 OAuth Test Tool")
 
-# --- GA4 Call ---
-def run_ga4_audit(credentials, property_id):
-    client = BetaAnalyticsDataClient(credentials=credentials)
-    date_range = DateRange(start_date="90daysAgo", end_date="today")
+# ---------------------------
+# Step 1: Start OAuth flow
+# ---------------------------
+if "access_token" not in st.session_state:
 
-    req = RunReportRequest(
-        property=f"properties/{property_id}",
-        dimensions=[],
-        metrics=[Metric(name="sessions"), Metric(name="totalUsers")],
-        date_ranges=[date_range]
-    )
-    response = client.run_report(req)
-    data = []
-    for row in response.rows:
-        record = {}
-        for i, dim in enumerate(response.dimension_headers):
-            record[dim.name] = row.dimension_values[i].value
-        for i, met in enumerate(response.metric_headers):
-            record[met.name] = row.metric_values[i].value
-        data.append(record)
-    return pd.DataFrame(data)
+    if "code" not in st.query_params:
+        oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
+        auth_url, state = oauth.create_authorization_url(authorize_url)
+        st.session_state["oauth_state"] = state
+        st.markdown("### Step 1: Connect Your Google Analytics")
+        st.markdown(f"[Click here to log in and authorize access]({auth_url})")
 
-# --- Run Button Trigger ---
-if run_button and uploaded_file and property_id:
-    try:
-        creds_dict = json.load(uploaded_file)
-        credentials = service_account.Credentials.from_service_account_info(creds_dict)
-        df = run_ga4_audit(credentials, property_id)
-        st.success("Audit Complete!")
-        st.dataframe(df)
+    else:
+        # Exchange authorization code for token
+        code = st.query_params["code"]
+        oauth = OAuth2Session(client_id, client_secret, redirect_uri=redirect_uri)
+        token = oauth.fetch_token(token_url, code=code)
+        st.session_state["access_token"] = token["access_token"]
+        st.success("✅ Authorization successful!")
 
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", csv, "ga4_audit.csv", "text/csv")
-    except Exception as e:
-        st.error(f"Error: {e}")
+# ---------------------------
+# Step 2: Show GA4 Properties
+# ---------------------------
+if "access_token" in st.session_state:
+    st.markdown("### Step 2: Your GA4 Accounts")
+
+    headers = {
+        "Authorization": f"Bearer {st.session_state['access_token']}"
+    }
+
+    resp = requests.get("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", headers=headers)
+
+    if resp.status_code == 200:
+        data = resp.json()
+        summaries = data.get("accountSummaries", [])
+        if summaries:
+            for summary in summaries:
+                account = summary["displayName"]
+                property_id = summary["propertySummaries"][0]["property"]
+                st.write(f"**{account}** — GA4 Property ID: `{property_id}`")
+        else:
+            st.info("No GA4 accounts found for this user.")
+    else:
+        st.error("Failed to retrieve GA4 accounts.")
+        st.text(resp.text)
