@@ -86,7 +86,11 @@ if selected_label:
             "stringFilter": {"value": "purchase"}
         }
     })
-    purchase_count = int(purchase_raw["rows"][0]["metricValues"][0]["value"])
+    
+    if purchase_raw.get("rows"):
+        purchase_count = int(purchase_raw["rows"][0]["metricValues"][0]["value"])
+    else:
+        purchase_count = 0
     metrics["purchase_event_count"] = purchase_count
     metrics["purchase_event_count_per_user"] = round(purchase_count / users, 2) if users else 0
 
