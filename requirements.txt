@@ -1,0 +1,4 @@
+streamlit
+pandas
+google-analytics-data
+google-auth
