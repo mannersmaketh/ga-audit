@@ -7,14 +7,8 @@ import requests
 # ---------------------------
 client_id = st.secrets["client_id"]
 client_secret = st.secrets["client_secret"]
-import os
+redirect_uri = "https://ga-audit.streamlit.app"
 
-if "STREAMLIT_SERVER_PORT" in os.environ:
-    # Running locally
-    redirect_uri = "http://localhost:8501"
-else:
-    # Running on Streamlit Cloud
-    redirect_uri = "https://ga-audit.streamlit.app"
 
 
 authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
