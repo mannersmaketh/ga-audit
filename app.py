@@ -55,11 +55,15 @@ if "access_token" in st.session_state:
         summaries = data.get("accountSummaries", [])
         if summaries:
             for summary in summaries:
-                account = summary["displayName"]
-                property_id = summary["propertySummaries"][0]["property"]
-                st.write(f"**{account}** — GA4 Property ID: `{property_id}`")
-        else:
-            st.info("No GA4 accounts found for this user.")
+                account = summary.get("displayName", "Unnamed Account")
+                property_summaries = summary.get("propertySummaries", [])
+                if property_summaries:
+                    for prop in property_summaries:
+                        property_id = prop.get("property", "N/A")
+                        st.write(f"**{account}** — GA4 Property ID: `{property_id}`")
+                else:
+                    st.write(f"**{account}** — No GA4 properties found.")
+
     else:
         st.error("Failed to retrieve GA4 accounts.")
         st.text(resp.text)
