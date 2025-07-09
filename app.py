@@ -46,10 +46,9 @@ property_labels = [opt["label"] for opt in options]
 property_ids = {opt["label"]: opt["id"] for opt in options}
 selected_label = st.selectbox("Choose a GA4 Property", property_labels)
 
+# --------------- REPORT GENERATION ---------------
 if selected_label:
     property_id = property_ids[selected_label]
-
-    # ---------- RUN METRIC REQUESTS ----------
     run_report_url = f"https://analyticsdata.googleapis.com/v1beta/{property_id}:runReport"
 
     def fetch_metric_report(metrics, dimensions=None, filters=None):
@@ -64,37 +63,49 @@ if selected_label:
         response = requests.post(run_report_url, headers=headers, json=body)
         return response.json()
 
-    # ---- Basic KPIs ----
+    # ---------- CONFIGURATION AUDITS ----------
+    retention_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/dataRetentionSettings"
+    retention_resp = requests.get(retention_url, headers=headers).json()
+    retention_value = retention_resp.get("eventDataRetention", "UNKNOWN")
+    retention_flag = "⚠️ Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "✅ OK"
+
+    stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
+    stream_resp = requests.get(stream_url, headers=headers).json()
+    streams = stream_resp.get("webDataStreams", [])
+    stream_info = []
+
+    if streams:
+        for stream in streams:
+            measurement_id = stream.get("measurementId", "N/A")
+            enhanced_settings = stream.get("enhancedMeasurementSettings", {})
+            enhanced = enhanced_settings.get("streamEnabled", False)
+            stream_info.append((measurement_id, enhanced))
+    else:
+        stream_info.append(("Not Found", "Not Found"))
+
+    # ---------- METRICS ----------
     core = fetch_metric_report(["sessions", "totalUsers", "purchaseRevenue"])
     metrics = {m["name"]: core["rows"][0]["metricValues"][i]["value"] for i, m in enumerate(core["metricHeaders"])}
 
-    # Sessions per user
     sessions = float(metrics["sessions"])
     users = float(metrics["totalUsers"])
     metrics["sessions_per_user"] = round(sessions / users, 2) if users else 0
 
-    # Engagement Rate
     engage = fetch_metric_report(["engagedSessions", "sessions"])
     engaged = int(engage["rows"][0]["metricValues"][0]["value"])
     total_sessions = int(engage["rows"][0]["metricValues"][1]["value"])
     metrics["engagement_rate"] = round(engaged / total_sessions, 2) if total_sessions else 0
 
-    # Purchase Tracking Accuracy
     purchase_raw = fetch_metric_report(["eventCount"], filters={
         "filter": {
             "fieldName": "eventName",
             "stringFilter": {"value": "purchase"}
         }
     })
-    
-    if purchase_raw.get("rows"):
-        purchase_count = int(purchase_raw["rows"][0]["metricValues"][0]["value"])
-    else:
-        purchase_count = 0
+    purchase_count = int(purchase_raw["rows"][0]["metricValues"][0]["value"]) if purchase_raw.get("rows") else 0
     metrics["purchase_event_count"] = purchase_count
     metrics["purchase_event_count_per_user"] = round(purchase_count / users, 2) if users else 0
 
-    # Unassigned traffic
     channel_data = fetch_metric_report(["sessions"], ["defaultChannelGrouping"])
     df_channel = pd.DataFrame([{
         "channel": row["dimensionValues"][0]["value"],
@@ -104,14 +115,12 @@ if selected_label:
     total = df_channel["sessions"].sum()
     metrics["percent_unassigned_sessions"] = round((unassigned_sessions / total) * 100, 2) if total else 0
 
-    # Device/platform mix
     device_data = fetch_metric_report(["totalUsers"], ["deviceCategory", "platform"])
     device_rows = []
     for row in device_data.get("rows", []):
         combo = f"{row['dimensionValues'][0]['value']} / {row['dimensionValues'][1]['value']}"
         device_rows.append((f"Device Mix - {combo}", int(row["metricValues"][0]["value"])))
-    
-    # Conversion rate consistency
+
     conv_data = fetch_metric_report(["sessions", "eventCount"], ["defaultChannelGrouping", "sourceMedium"], filters={
         "filter": {
             "fieldName": "eventName",
@@ -128,25 +137,22 @@ if selected_label:
         label = f"CVR - {grouping} ({source})"
         conv_rows.append((label, f"{cvr}%"))
 
-    # Event spam check
     top_events = fetch_metric_report(["eventCount"], ["eventName"])
     event_spam = sorted([
         (f"Top Event - {row['dimensionValues'][0]['value']}", int(row["metricValues"][0]["value"]))
         for row in top_events.get("rows", [])
     ], key=lambda x: -x[1])[:10]
 
-    # --------------- FINAL REPORT OUTPUT ---------------
+    # ---------- FINAL REPORT ----------
     st.markdown("### 📈 Metrics Overview")
     st.write(f"**Sessions** = {int(sessions):,}")
     st.write(f"**Users** = {int(users):,}")
     st.write(f"**Revenue** = ${float(metrics['purchaseRevenue']):,.2f}")
-
     st.write(f"**Sessions per User** = {metrics['sessions_per_user']}")
     st.write(f"**Engagement Rate** = {metrics['engagement_rate']}")
     st.write("**Purchase Tracking Accuracy:**")
     st.write(f"- eventCount for purchase = {metrics['purchase_event_count']}")
     st.write(f"- eventCount per user for purchase = {metrics['purchase_event_count_per_user']}")
-
     st.write(f"**% of Unassigned Traffic** = {metrics['percent_unassigned_sessions']}%")
 
     st.markdown("### 🧩 Device / Platform Mix")
@@ -161,7 +167,13 @@ if selected_label:
     for label, value in event_spam:
         st.write(f"- {label} = {value:,}")
 
-    # --------------- CSV DOWNLOAD ---------------
+    st.markdown("### ⚙️ GA4 Configuration Audit")
+    st.write(f"**Data Retention Setting** = {retention_value} ({retention_flag})")
+    st.write("**Web Data Streams:**")
+    for mid, enhanced in stream_info:
+        st.write(f"- Measurement ID: `{mid}` — Enhanced Measurement Enabled: `{enhanced}`")
+
+    # ---------- CSV DOWNLOAD ----------
     audit_data = [
         ("Sessions", sessions),
         ("Users", users),
@@ -170,8 +182,15 @@ if selected_label:
         ("Engagement Rate", metrics["engagement_rate"]),
         ("Purchase Event Count", metrics["purchase_event_count"]),
         ("Purchase Event Count per User", metrics["purchase_event_count_per_user"]),
-        ("% Unassigned Traffic", metrics["percent_unassigned_sessions"])
-    ] + device_rows + conv_rows + event_spam
+        ("% Unassigned Traffic", metrics["percent_unassigned_sessions"]),
+        ("Data Retention", f"{retention_value} ({retention_flag})"),
+    ]
+
+    for i, (mid, enhanced) in enumerate(stream_info):
+        audit_data.append((f"Web Stream {i+1} - Measurement ID", mid))
+        audit_data.append((f"Web Stream {i+1} - Enhanced Measurement Enabled", enhanced))
+
+    audit_data += device_rows + conv_rows + event_spam
 
     df_csv = pd.DataFrame(audit_data, columns=["Metric", "Value"])
     csv = df_csv.to_csv(index=False).encode("utf-8")
