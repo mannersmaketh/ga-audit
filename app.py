@@ -43,7 +43,7 @@ for summary in summaries:
         })
 
 property_labels = [opt["label"] for opt in options]
-property_ids = {opt["label"]: opt["id"] for opt in options]
+property_ids = {opt["label"]: opt["id"] for opt in options}
 selected_label = st.selectbox("Choose a GA4 Property", property_labels)
 
 if selected_label:
