@@ -12,7 +12,7 @@ token_url = "https://oauth2.googleapis.com/token"
 scope = "https://www.googleapis.com/auth/analytics.readonly"
 
 st.set_page_config(page_title="GA4 Audit", layout="centered")
-st.title("\ud83d\udcca GA4 Executive Audit Report")
+st.title("📊 GA4 Executive Audit Report")
 
 # --------------- OAUTH FLOW ---------------
 if "access_token" not in st.session_state:
