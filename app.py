@@ -150,18 +150,33 @@ if selected_label:
         combo = f"{row['dimensionValues'][0]['value']} / {row['dimensionValues'][1]['value']}"
         device_rows.append((f"Device Mix - {combo}", int(row["metricValues"][0]["value"])))
 
-    conv_data = fetch_metric_report(["sessions", "eventCount"], ["defaultChannelGrouping", "sourceMedium"], filters={
-        "filter": {"fieldName": "eventName", "stringFilter": {"value": "purchase"}}
-    })
-    conv_rows = []
-    for row in conv_data.get("rows", []):
-        grouping = row["dimensionValues"][0]["value"]
-        source = row["dimensionValues"][1]["value"]
-        s = int(row["metricValues"][0]["value"])
-        p = int(row["metricValues"][1]["value"])
-        cvr = round(p / s * 100, 2) if s else 0
-        label = f"CVR - {grouping} ({source})"
-        conv_rows.append((label, f"{cvr}%"))
+ # Get sessions by channel/source
+sessions_data = fetch_metric_report(["sessions"], ["defaultChannelGrouping", "sourceMedium"])
+
+# Get purchase event count by channel/source
+purchase_data = fetch_metric_report(["eventCount"], ["defaultChannelGrouping", "sourceMedium"], filters={
+    "filter": {
+        "fieldName": "eventName",
+        "stringFilter": {"value": "purchase"}
+    }
+})
+
+# Build lookup for eventCount
+purchase_lookup = {}
+for row in purchase_data.get("rows", []):
+    key = (row["dimensionValues"][0]["value"], row["dimensionValues"][1]["value"])
+    purchase_lookup[key] = int(row["metricValues"][0]["value"])
+
+# Now join and calculate conversion rates
+conv_rows = []
+for row in sessions_data.get("rows", []):
+    grouping = row["dimensionValues"][0]["value"]
+    source = row["dimensionValues"][1]["value"]
+    s = int(row["metricValues"][0]["value"])
+    p = purchase_lookup.get((grouping, source), 0)
+    cvr = round(p / s * 100, 2) if s else 0
+    label = f"CVR - {grouping} ({source})"
+    conv_rows.append((label, f"{cvr}%"))
 
     top_events = fetch_metric_report(["eventCount"], ["eventName"])
     event_spam = sorted([
