@@ -63,25 +63,38 @@ if selected_label:
         response = requests.post(run_report_url, headers=headers, json=body)
         return response.json()
 
-    # ---------- CONFIGURATION AUDITS ----------
-    retention_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/dataRetentionSettings"
-    retention_resp = requests.get(retention_url, headers=headers).json()
-    retention_value = retention_resp.get("eventDataRetention", "UNKNOWN")
-    retention_flag = "⚠️ Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "✅ OK"
-
-    stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
-    stream_resp = requests.get(stream_url, headers=headers).json()
-    streams = stream_resp.get("webDataStreams", [])
-    stream_info = []
-
-    if streams:
-        for stream in streams:
-            measurement_id = stream.get("measurementId", "N/A")
-            enhanced_settings = stream.get("enhancedMeasurementSettings", {})
-            enhanced = enhanced_settings.get("streamEnabled", False)
-            stream_info.append((measurement_id, enhanced))
-    else:
-        stream_info.append(("Not Found", "Not Found"))
+        # ---------- CONFIGURATION AUDITS ----------
+        retention_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/dataRetentionSettings"
+        retention_response = requests.get(retention_url, headers=headers)
+        
+        if retention_response.status_code == 200:
+            retention_resp = retention_response.json()
+            retention_value = retention_resp.get("eventDataRetention", "UNKNOWN")
+            retention_flag = "⚠️ Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "✅ OK"
+        else:
+            retention_value = "ERROR"
+            retention_flag = "❌ Not Retrieved"
+        
+        stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
+        stream_response = requests.get(stream_url, headers=headers)
+        
+        if stream_response.status_code == 200:
+            stream_resp = stream_response.json()
+            streams = stream_resp.get("webDataStreams", [])
+        else:
+            st.warning(f"⚠️ Failed to fetch web data streams (status {stream_response.status_code})")
+            streams = []
+        
+        stream_info = []
+        if streams:
+            for stream in streams:
+                measurement_id = stream.get("measurementId", "N/A")
+                enhanced_settings = stream.get("enhancedMeasurementSettings", {})
+                enhanced = enhanced_settings.get("streamEnabled", False)
+                stream_info.append((measurement_id, enhanced))
+        else:
+            stream_info.append(("Not Found", "Not Found"))
+        
 
     # ---------- METRICS ----------
     core = fetch_metric_report(["sessions", "totalUsers", "purchaseRevenue"])
