@@ -88,6 +88,7 @@ if selected_label:
         retention_value = retention_resp.get("eventDataRetention", "UNKNOWN")
         retention_flag = "⚠️ Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "✅ OK"
 
+    # Try to fetch web data streams first
     stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
     stream_response = requests.get(stream_url, headers=headers)
     try:
@@ -95,18 +96,50 @@ if selected_label:
     except ValueError:
         stream_resp = {}
 
+    streams = []
+    stream_type = "Web"
+    
     if "error" in stream_resp:
-        st.warning("⚠️ Failed to fetch Web Data Streams (permission or config issue).")
-        streams = []
+        error_msg = stream_resp.get("error", {}).get("message", "Unknown error")
+        st.warning(f"⚠️ Failed to fetch Web Data Streams: {error_msg}")
+        
+        # Try app data streams as fallback
+        app_stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/iosAppDataStreams"
+        app_stream_response = requests.get(app_stream_url, headers=headers)
+        try:
+            app_stream_resp = app_stream_response.json()
+        except ValueError:
+            app_stream_resp = {}
+            
+        if "error" not in app_stream_resp:
+            streams = app_stream_resp.get("iosAppDataStreams", [])
+            stream_type = "iOS App"
+        else:
+            # Try Android app streams
+            android_stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/androidAppDataStreams"
+            android_stream_response = requests.get(android_stream_url, headers=headers)
+            try:
+                android_stream_resp = android_stream_response.json()
+            except ValueError:
+                android_stream_resp = {}
+                
+            if "error" not in android_stream_resp:
+                streams = android_stream_resp.get("androidAppDataStreams", [])
+                stream_type = "Android App"
     else:
         streams = stream_resp.get("webDataStreams", [])
 
     stream_info = []
     if streams:
         for stream in streams:
-            measurement_id = stream.get("measurementId", "N/A")
-            enhanced_settings = stream.get("enhancedMeasurementSettings", {})
-            enhanced = enhanced_settings.get("streamEnabled", False)
+            if stream_type == "Web":
+                measurement_id = stream.get("measurementId", "N/A")
+                enhanced_settings = stream.get("enhancedMeasurementSettings", {})
+                enhanced = enhanced_settings.get("streamEnabled", False)
+            else:
+                # For app streams, use bundle ID or package name
+                measurement_id = stream.get("bundleId", stream.get("packageName", "N/A"))
+                enhanced = "N/A (App Stream)"
             stream_info.append((measurement_id, enhanced))
     else:
         stream_info.append(("Not Found", "Not Found"))
@@ -205,9 +238,18 @@ for row in sessions_data.get("rows", []):
 
     st.markdown("### GA4 Configuration Audit")
     st.write(f"**Data Retention Setting** = {retention_value} ({retention_flag})")
-    st.write("**Web Data Streams:**")
-    for mid, enhanced in stream_info:
-        st.write(f"- Measurement ID: `{mid}` — Enhanced Measurement Enabled: `{enhanced}`")
+    st.write(f"**{stream_type} Data Streams:**")
+    if stream_info and stream_info[0][0] != "Not Found":
+        for i, (mid, enhanced) in enumerate(stream_info):
+            if stream_type == "Web":
+                st.write(f"- Stream {i+1}: Measurement ID `{mid}` — Enhanced Measurement: `{enhanced}`")
+            else:
+                st.write(f"- Stream {i+1}: Bundle/Package ID `{mid}` — Type: {stream_type}")
+    else:
+        st.write("- No data streams found. This could be due to:")
+        st.write("  - Insufficient API permissions")
+        st.write("  - Property has no configured data streams")
+        st.write("  - Property is an app-only property (no web streams)")
 
     # ---------- CSV DOWNLOAD ----------
     audit_data = [
