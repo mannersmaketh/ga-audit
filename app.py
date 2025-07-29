@@ -60,11 +60,7 @@ selected_label = st.selectbox("Choose a GA4 Property", property_labels)
 # Add Run Audit button
 run_audit = False
 if selected_label:
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        run_audit = st.button("🚀 Run Audit", type="primary")
-    with col2:
-        st.write(f"Selected: **{selected_label}**")
+    run_audit = st.button("🚀 Run Audit", type="primary")
     
     if run_audit:
         property_id = property_ids[selected_label]
