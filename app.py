@@ -9,7 +9,7 @@ client_secret = st.secrets["client_secret"]
 redirect_uri = "https://ga-audit.streamlit.app"
 authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
 token_url = "https://oauth2.googleapis.com/token"
-scope = "https://www.googleapis.com/auth/analytics.readonly"
+scope = "https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/analytics.manage.users.readonly https://www.googleapis.com/auth/analytics.edit"
 
 st.set_page_config(page_title="GA4 Audit", layout="centered")
 st.title("📊 GA4 Executive Audit Report")
@@ -128,25 +128,38 @@ if selected_label:
         status_text.text("🔗 Checking Data Streams...")
         progress_bar.progress(30)
         
+        # Debug: Show the property ID being used
+        st.write(f"**Debug:** Checking property ID: `{property_id}`")
+        
         stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
         stream_response = requests.get(stream_url, headers=headers)
+        
+        # Debug: Show the API response
+        st.write(f"**Debug:** Web Data Streams API Status Code: {stream_response.status_code}")
+        
         try:
             stream_resp = stream_response.json()
+            st.write(f"**Debug:** Web Data Streams Response: {stream_resp}")
         except ValueError:
             stream_resp = {}
+            st.write("**Debug:** Failed to parse JSON response")
 
         streams = []
         stream_type = "Web"
         
         if "error" in stream_resp:
             error_msg = stream_resp.get("error", {}).get("message", "Unknown error")
-            st.warning(f"⚠️ Failed to fetch Web Data Streams: {error_msg}")
+            error_code = stream_resp.get("error", {}).get("code", "Unknown")
+            st.warning(f"⚠️ Failed to fetch Web Data Streams: {error_msg} (Code: {error_code})")
             
             # Try app data streams as fallback
             app_stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/iosAppDataStreams"
             app_stream_response = requests.get(app_stream_url, headers=headers)
+            st.write(f"**Debug:** iOS App Streams API Status Code: {app_stream_response.status_code}")
+            
             try:
                 app_stream_resp = app_stream_response.json()
+                st.write(f"**Debug:** iOS App Streams Response: {app_stream_resp}")
             except ValueError:
                 app_stream_resp = {}
                 
@@ -157,8 +170,11 @@ if selected_label:
                 # Try Android app streams
                 android_stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/androidAppDataStreams"
                 android_stream_response = requests.get(android_stream_url, headers=headers)
+                st.write(f"**Debug:** Android App Streams API Status Code: {android_stream_response.status_code}")
+                
                 try:
                     android_stream_resp = android_stream_response.json()
+                    st.write(f"**Debug:** Android App Streams Response: {android_stream_resp}")
                 except ValueError:
                     android_stream_resp = {}
                     
@@ -167,6 +183,7 @@ if selected_label:
                     stream_type = "Android App"
         else:
             streams = stream_resp.get("webDataStreams", [])
+            st.write(f"**Debug:** Found {len(streams)} web data streams")
 
         stream_info = []
         if streams:
