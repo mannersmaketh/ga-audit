@@ -64,11 +64,11 @@ if selected_label:
         try:
             result = response.json()
         except ValueError:
-            st.error("\u274c Invalid JSON response from GA4 API.")
+            st.error("❌ Invalid JSON response from GA4 API.")
             st.stop()
 
         if "error" in result:
-            st.error(f"\u274c GA4 API error: {result['error'].get('message', 'Unknown error')}")
+            st.error(f"❌ GA4 API error: {result['error'].get('message', 'Unknown error')}")
             st.stop()
 
         return result
@@ -83,10 +83,10 @@ if selected_label:
 
     if "error" in retention_resp:
         retention_value = "ERROR"
-        retention_flag = "\u274c Not Retrieved"
+        retention_flag = "❌ Not Retrieved"
     else:
         retention_value = retention_resp.get("eventDataRetention", "UNKNOWN")
-        retention_flag = "\u26a0\ufe0f Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "\u2705 OK"
+        retention_flag = "⚠️ Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "✅ OK"
 
     stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
     stream_response = requests.get(stream_url, headers=headers)
@@ -96,7 +96,7 @@ if selected_label:
         stream_resp = {}
 
     if "error" in stream_resp:
-        st.warning("\u26a0\ufe0f Failed to fetch Web Data Streams (permission or config issue).")
+        st.warning("⚠️ Failed to fetch Web Data Streams (permission or config issue).")
         streams = []
     else:
         streams = stream_resp.get("webDataStreams", [])
@@ -116,7 +116,7 @@ if selected_label:
     if "rows" in core and "metricHeaders" in core:
         metrics = {m["name"]: core["rows"][0]["metricValues"][i]["value"] for i, m in enumerate(core["metricHeaders"])}
     else:
-        st.error("\u274c Failed to retrieve core metrics from GA4. Check property access or API quota.")
+        st.error("❌ Failed to retrieve core metrics from GA4. Check property access or API quota.")
         st.stop()
 
     sessions = float(metrics["sessions"])
@@ -180,7 +180,7 @@ for row in sessions_data.get("rows", []):
     ], key=lambda x: -x[1])[:10]
 
     # ---------- FINAL OUTPUT ----------
-    st.markdown("### \ud83d\udcc8 Metrics Overview")
+    st.markdown("### Metrics Overview")
     st.write(f"**Sessions** = {int(sessions):,}")
     st.write(f"**Users** = {int(users):,}")
     st.write(f"**Revenue** = ${float(metrics['purchaseRevenue']):,.2f}")
@@ -191,19 +191,19 @@ for row in sessions_data.get("rows", []):
     st.write(f"- eventCount per user for purchase = {metrics['purchase_event_count_per_user']}")
     st.write(f"**% of Unassigned Traffic** = {metrics['percent_unassigned_sessions']}%")
 
-    st.markdown("### \ud83e\udde9 Device / Platform Mix")
+    st.markdown("### Device / Platform Mix")
     for label, value in device_rows:
         st.write(f"- {label} = {value:,} users")
 
-    st.markdown("### \ud83d\udd04 Conversion Rate Consistency")
+    st.markdown("### Conversion Rate Consistency")
     for label, value in conv_rows:
         st.write(f"- {label} = {value}")
 
-    st.markdown("### \ud83d\udd25 Top Events by Volume")
+    st.markdown("### Top Events by Volume")
     for label, value in event_spam:
         st.write(f"- {label} = {value:,}")
 
-    st.markdown("### \u2699\ufe0f GA4 Configuration Audit")
+    st.markdown("### GA4 Configuration Audit")
     st.write(f"**Data Retention Setting** = {retention_value} ({retention_flag})")
     st.write("**Web Data Streams:**")
     for mid, enhanced in stream_info:
@@ -228,4 +228,4 @@ for row in sessions_data.get("rows", []):
 
     df_csv = pd.DataFrame(audit_data, columns=["Metric", "Value"])
     csv = df_csv.to_csv(index=False).encode("utf-8")
-    st.download_button("\u2b07\ufe0f Download Full Audit CSV", csv, "ga4_audit_summary.csv", "text/csv")
+    st.download_button("Download Full Audit CSV", csv, "ga4_audit_summary.csv", "text/csv")
