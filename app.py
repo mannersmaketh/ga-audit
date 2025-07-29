@@ -74,6 +74,14 @@ if selected_label:
     if run_audit:
         property_id = property_ids[selected_label]
         run_report_url = f"https://analyticsdata.googleapis.com/v1beta/{property_id}:runReport"
+        
+        # Progress bar for audit process
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # Update progress
+        status_text.text("🔍 Starting GA4 Audit...")
+        progress_bar.progress(10)
 
         def fetch_metric_report(metrics, dimensions=None, filters=None):
             body = {
@@ -99,6 +107,9 @@ if selected_label:
             return result
 
         # ---------- CONFIGURATION AUDITS ----------
+        status_text.text("⚙️ Checking GA4 Configuration...")
+        progress_bar.progress(20)
+        
         retention_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/dataRetentionSettings"
         retention_response = requests.get(retention_url, headers=headers)
         try:
@@ -114,6 +125,9 @@ if selected_label:
             retention_flag = "⚠️ Too Short" if "2_MONTHS" in retention_value or "14" not in retention_value else "✅ OK"
 
         # Try to fetch web data streams first
+        status_text.text("🔗 Checking Data Streams...")
+        progress_bar.progress(30)
+        
         stream_url = f"https://analyticsadmin.googleapis.com/v1beta/{property_id}/webDataStreams"
         stream_response = requests.get(stream_url, headers=headers)
         try:
@@ -170,6 +184,9 @@ if selected_label:
             stream_info.append(("Not Found", "Not Found"))
 
         # ---------- METRICS ----------
+        status_text.text("📊 Collecting Core Metrics...")
+        progress_bar.progress(40)
+        
         core = fetch_metric_report(["sessions", "totalUsers", "purchaseRevenue"])
         if "rows" in core and "metricHeaders" in core:
             metrics = {m["name"]: core["rows"][0]["metricValues"][i]["value"] for i, m in enumerate(core["metricHeaders"])}
@@ -181,6 +198,9 @@ if selected_label:
         users = float(metrics["totalUsers"])
         metrics["sessions_per_user"] = round(sessions / users, 2) if users else 0
 
+        status_text.text("📈 Calculating Engagement Metrics...")
+        progress_bar.progress(50)
+        
         engage = fetch_metric_report(["engagedSessions", "sessions"])
         engaged = int(engage["rows"][0]["metricValues"][0]["value"])
         total_sessions = int(engage["rows"][0]["metricValues"][1]["value"])
@@ -193,6 +213,9 @@ if selected_label:
         metrics["purchase_event_count"] = purchase_count
         metrics["purchase_event_count_per_user"] = round(purchase_count / users, 2) if users else 0
 
+        status_text.text("🌐 Analyzing Traffic Sources...")
+        progress_bar.progress(60)
+        
         channel_data = fetch_metric_report(["sessions"], ["defaultChannelGrouping"])
         df_channel = pd.DataFrame([{
             "channel": row["dimensionValues"][0]["value"],
@@ -202,12 +225,18 @@ if selected_label:
         total = df_channel["sessions"].sum()
         metrics["percent_unassigned_sessions"] = round((unassigned_sessions / total) * 100, 2) if total else 0
 
+        status_text.text("📱 Analyzing Device Mix...")
+        progress_bar.progress(70)
+        
         device_data = fetch_metric_report(["totalUsers"], ["deviceCategory", "platform"])
         device_rows = []
         for row in device_data.get("rows", []):
             combo = f"{row['dimensionValues'][0]['value']} / {row['dimensionValues'][1]['value']}"
             device_rows.append((f"Device Mix - {combo}", int(row["metricValues"][0]["value"])))
 
+        status_text.text("🔄 Analyzing Conversion Rates...")
+        progress_bar.progress(80)
+        
         # Get sessions by channel/source
         sessions_data = fetch_metric_report(["sessions"], ["defaultChannelGrouping", "sourceMedium"])
 
@@ -231,6 +260,9 @@ if selected_label:
             label = f"CVR - {grouping} ({source})"
             conv_rows.append((label, f"{cvr}%"))
 
+        status_text.text("📊 Analyzing Top Events...")
+        progress_bar.progress(90)
+        
         top_events = fetch_metric_report(["eventCount"], ["eventName"])
         event_spam = sorted([
             (f"Top Event - {row['dimensionValues'][0]['value']}", int(row["metricValues"][0]["value"]))
@@ -238,6 +270,13 @@ if selected_label:
         ], key=lambda x: -x[1])[:10]
 
         # ---------- FINAL OUTPUT ----------
+        status_text.text("✅ Audit Complete! Generating Report...")
+        progress_bar.progress(100)
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
         # Create 2-column grid layout
         col1, col2 = st.columns(2)
         
