@@ -20,7 +20,18 @@ if "access_token" not in st.session_state:
         oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
         auth_url, state = oauth.create_authorization_url(authorize_url)
         st.session_state["oauth_state"] = state
-        st.markdown(f"[Click here to connect Google Analytics]({auth_url})")
+        
+        # Create a button that will redirect in the same tab
+        if st.button("🔗 Connect Google Analytics", type="primary"):
+            # Use JavaScript to redirect in the same tab
+            js_code = f"""
+            <script>
+                window.location.href = "{auth_url}";
+            </script>
+            """
+            st.components.v1.html(js_code, height=0)
+        
+        st.info("Click the button above to connect your Google Analytics account. You'll be redirected to Google's authorization page and then back to this app.")
         st.stop()
     else:
         code = st.query_params["code"]
