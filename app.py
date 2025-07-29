@@ -38,7 +38,7 @@ for summary in summaries:
     account = summary.get("displayName", "Unnamed Account")
     for prop in summary.get("propertySummaries", []):
         options.append({
-            "label": f"{account} \u2014 {prop.get('displayName')} ({prop.get('property')})",
+            "label": f"{account} — {prop.get('displayName')} ({prop.get('property')})",
             "id": prop.get("property")
         })
 
@@ -183,28 +183,28 @@ if selected_label:
         combo = f"{row['dimensionValues'][0]['value']} / {row['dimensionValues'][1]['value']}"
         device_rows.append((f"Device Mix - {combo}", int(row["metricValues"][0]["value"])))
 
- # Get sessions by channel/source
-sessions_data = fetch_metric_report(["sessions"], ["defaultChannelGrouping", "sourceMedium"])
+    # Get sessions by channel/source
+    sessions_data = fetch_metric_report(["sessions"], ["defaultChannelGrouping", "sourceMedium"])
 
-# Get conversion events by channel/source (using conversions instead of eventCount)
-conversion_data = fetch_metric_report(["conversions"], ["defaultChannelGrouping", "sourceMedium"])
+    # Get conversion events by channel/source (using conversions instead of eventCount)
+    conversion_data = fetch_metric_report(["conversions"], ["defaultChannelGrouping", "sourceMedium"])
 
-# Build lookup for conversions
-conversion_lookup = {}
-for row in conversion_data.get("rows", []):
-    key = (row["dimensionValues"][0]["value"], row["dimensionValues"][1]["value"])
-    conversion_lookup[key] = int(row["metricValues"][0]["value"])
+    # Build lookup for conversions
+    conversion_lookup = {}
+    for row in conversion_data.get("rows", []):
+        key = (row["dimensionValues"][0]["value"], row["dimensionValues"][1]["value"])
+        conversion_lookup[key] = int(row["metricValues"][0]["value"])
 
-# Now join and calculate conversion rates
-conv_rows = []
-for row in sessions_data.get("rows", []):
-    grouping = row["dimensionValues"][0]["value"]
-    source = row["dimensionValues"][1]["value"]
-    s = int(row["metricValues"][0]["value"])
-    c = conversion_lookup.get((grouping, source), 0)
-    cvr = round(c / s * 100, 2) if s else 0
-    label = f"CVR - {grouping} ({source})"
-    conv_rows.append((label, f"{cvr}%"))
+    # Now join and calculate conversion rates
+    conv_rows = []
+    for row in sessions_data.get("rows", []):
+        grouping = row["dimensionValues"][0]["value"]
+        source = row["dimensionValues"][1]["value"]
+        s = int(row["metricValues"][0]["value"])
+        c = conversion_lookup.get((grouping, source), 0)
+        cvr = round(c / s * 100, 2) if s else 0
+        label = f"CVR - {grouping} ({source})"
+        conv_rows.append((label, f"{cvr}%"))
 
     top_events = fetch_metric_report(["eventCount"], ["eventName"])
     event_spam = sorted([
