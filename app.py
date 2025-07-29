@@ -238,29 +238,38 @@ if selected_label:
         ], key=lambda x: -x[1])[:10]
 
         # ---------- FINAL OUTPUT ----------
-        st.markdown("### Metrics Overview")
-        st.write(f"**Sessions** = {int(sessions):,}")
-        st.write(f"**Users** = {int(users):,}")
-        st.write(f"**Revenue** = ${float(metrics['purchaseRevenue']):,.2f}")
-        st.write(f"**Sessions per User** = {metrics['sessions_per_user']}")
-        st.write(f"**Engagement Rate** = {metrics['engagement_rate']}")
-        st.write("**Purchase Tracking Accuracy:**")
-        st.write(f"- eventCount for purchase = {metrics['purchase_event_count']}")
-        st.write(f"- eventCount per user for purchase = {metrics['purchase_event_count_per_user']}")
-        st.write(f"**% of Unassigned Traffic** = {metrics['percent_unassigned_sessions']}%")
-
-        st.markdown("### Device / Platform Mix")
-        for label, value in device_rows:
-            st.write(f"- {label} = {value:,} users")
-
-        st.markdown("### Conversion Rate Consistency")
-        for label, value in conv_rows:
-            st.write(f"- {label} = {value}")
-
-        st.markdown("### Top Events by Volume")
-        for label, value in event_spam:
-            st.write(f"- {label} = {value:,}")
-
+        # Create 2-column grid layout
+        col1, col2 = st.columns(2)
+        
+        # Column 1: Metrics Overview
+        with col1:
+            st.markdown("### Metrics Overview")
+            st.write(f"**Sessions** = {int(sessions):,}")
+            st.write(f"**Users** = {int(users):,}")
+            st.write(f"**Revenue** = ${float(metrics['purchaseRevenue']):,.2f}")
+            st.write(f"**Sessions per User** = {metrics['sessions_per_user']}")
+            st.write(f"**Engagement Rate** = {metrics['engagement_rate']}")
+            st.write("**Purchase Tracking Accuracy:**")
+            st.write(f"- eventCount for purchase = {metrics['purchase_event_count']}")
+            st.write(f"- eventCount per user for purchase = {metrics['purchase_event_count_per_user']}")
+            st.write(f"**% of Unassigned Traffic** = {metrics['percent_unassigned_sessions']}%")
+            
+            st.markdown("### Device / Platform Mix")
+            for label, value in device_rows:
+                st.write(f"- {label} = {value:,} users")
+        
+        # Column 2: Conversion Rate Consistency and Top Events
+        with col2:
+            st.markdown("### Conversion Rate Consistency")
+            st.info("This section shows conversion rates by traffic source and channel. It helps identify which marketing channels are driving the most conversions and which sources might need optimization.")
+            for label, value in conv_rows:
+                st.write(f"- {label} = {value}")
+            
+            st.markdown("### Top Events by Volume")
+            for label, value in event_spam:
+                st.write(f"- {label} = {value:,}")
+        
+        # Full width: GA4 Configuration Audit
         st.markdown("### GA4 Configuration Audit")
         st.write(f"**Data Retention Setting** = {retention_value} ({retention_flag})")
         st.write(f"**{stream_type} Data Streams:**")
